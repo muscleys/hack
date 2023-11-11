@@ -3,3 +3,7 @@ numpy
 pandas
 pydeck
 streamlit
+rasterio
+flask
+torch
+torchvision
