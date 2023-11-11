@@ -14,6 +14,7 @@
 
 import streamlit as st
 from streamlit.logger import get_logger
+from PIL import Image
 
 LOGGER = get_logger(__name__)
 
@@ -21,31 +22,37 @@ LOGGER = get_logger(__name__)
 def run():
     st.set_page_config(
         page_title="Hello",
-        page_icon="👋",
+        page_icon="",
     )
 
-    st.write("# Welcome to Streamlit! 👋")
+    # File upload widget
+    uploaded_file = st.file_uploader("Upload a file", type=["txt", "csv", "pdf", "png", "jpg", "jpeg"])
 
-    st.sidebar.success("Select a demo above.")
+    if uploaded_file is not None:
+        # Display the uploaded file
+        st.success("File successfully uploaded!")
+        st.write("File name:", uploaded_file.name)
+        st.write("File type:", uploaded_file.type)
+        st.write("File size:", uploaded_file.size, "bytes")
 
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
-        **👈 Select a demo from the sidebar** to see some examples
-        of what Streamlit can do!
-        ### Want to learn more?
-        - Check out [streamlit.io](https://streamlit.io)
-        - Jump into our [documentation](https://docs.streamlit.io)
-        - Ask a question in our [community
-          forums](https://discuss.streamlit.io)
-        ### See more complex demos
-        - Use a neural net to [analyze the Udacity Self-driving Car Image
-          Dataset](https://github.com/streamlit/demo-self-driving)
-        - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
-    """
-    )
+        # Display image if the uploaded file is an image
+        if uploaded_file.type.startswith('image'):
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Uploaded Image", use_column_width=True)
 
+        # Add a button to dispose of the file
+        if st.button("Dispose of File"):
+            dispose_file(uploaded_file)
+
+      
+
+
+def dispose_file(file):
+    # Your disposal logic goes here
+    # In this example, we simply delete the file
+    file_path = os.path.join("uploads", file.name)
+    os.remove(file_path)
+    st.success(f"File '{file.name}' has been disposed of.")
 
 if __name__ == "__main__":
     run()

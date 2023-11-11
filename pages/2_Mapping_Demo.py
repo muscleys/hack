@@ -14,85 +14,58 @@
 
 from urllib.error import URLError
 
-import pandas as pd
+import streamlit as st
 import pydeck as pdk
 
-import streamlit as st
-from streamlit.hello.utils import show_code
-
-
 def mapping_demo():
-    @st.cache_data
-    def from_data_file(filename):
-        url = (
-            "https://raw.githubusercontent.com/streamlit/"
-            "example-data/master/hello/v1/%s" % filename
-        )
-        return pd.read_json(url)
+    # Input fields for latitude and longitude
+    latitude = st.sidebar.number_input("Enter Latitude:")
+    longitude = st.sidebar.number_input("Enter Longitude:")
+    
+    # Button to add the point
+    show_button = st.sidebar.button("Show Point")
+    #button to delete all points 
+    reset_button = st.sidebar.button("Delete Points")
+
+    # List to store points
+    points = []
 
     try:
+        if show_button:
+            # Add the current point to the list
+            points.append({"lon": longitude, "lat": latitude})
+
+        if reset_button:
+            #deletes all points 
+            points = []
+
         ALL_LAYERS = {
-            "Bike Rentals": pdk.Layer(
+            "Point": pdk.Layer(
                 "HexagonLayer",
-                data=from_data_file("bike_rental_stats.json"),
+                data=points,
                 get_position=["lon", "lat"],
-                radius=200,
+                color=[255, 255, 255, 0],  # Red color with 50% transparency
+                radius=400000,
                 elevation_scale=4,
                 elevation_range=[0, 1000],
                 extruded=True,
             ),
-            "Bart Stop Exits": pdk.Layer(
-                "ScatterplotLayer",
-                data=from_data_file("bart_stop_stats.json"),
-                get_position=["lon", "lat"],
-                get_color=[200, 30, 0, 160],
-                get_radius="[exits]",
-                radius_scale=0.05,
-            ),
-            "Bart Stop Names": pdk.Layer(
-                "TextLayer",
-                data=from_data_file("bart_stop_stats.json"),
-                get_position=["lon", "lat"],
-                get_text="name",
-                get_color=[0, 0, 0, 200],
-                get_size=10,
-                get_alignment_baseline="'bottom'",
-            ),
-            "Outbound Flow": pdk.Layer(
-                "ArcLayer",
-                data=from_data_file("bart_path_stats.json"),
-                get_source_position=["lon", "lat"],
-                get_target_position=["lon2", "lat2"],
-                get_source_color=[200, 30, 0, 160],
-                get_target_color=[200, 30, 0, 160],
-                auto_highlight=True,
-                width_scale=0.0001,
-                get_width="outbound",
-                width_min_pixels=3,
-                width_max_pixels=30,
-            ),
         }
-        st.sidebar.markdown("### Map Layers")
-        selected_layers = [
-            layer
-            for layer_name, layer in ALL_LAYERS.items()
-            if st.sidebar.checkbox(layer_name, True)
-        ]
-        if selected_layers:
-            st.pydeck_chart(
-                pdk.Deck(
-                    map_style=None,
-                    initial_view_state={
-                        "latitude": 37.76,
-                        "longitude": -122.4,
-                        "zoom": 11,
-                        "pitch": 50,
-                    },
-                    layers=selected_layers,
-                )
+        
+        # Include the layer in the Deck object
+        st.pydeck_chart(
+            pdk.Deck(
+                map_style=None,
+                initial_view_state={
+                    "latitude": 0,
+                    "longitude": 0,
+                    "zoom": 1,
+                    "pitch": 50,
+                },
+                layers=list(ALL_LAYERS.values()),  # Add this line to include the layer
             )
-        else:
-            st.error("Please choose at least one layer above.")
+        )
+        
     except URLError as e:
         st.error(
             """
@@ -101,7 +74,6 @@ def mapping_demo():
         """
             % e.reason
         )
-
 
 st.set_page_config(page_title="Mapping Demo", page_icon="🌍")
 st.markdown("# Mapping Demo")
@@ -113,5 +85,3 @@ to display geospatial data."""
 )
 
 mapping_demo()
-
-show_code(mapping_demo)
