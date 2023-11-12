@@ -12,31 +12,79 @@ import pydeck as pdk
 import datetime
 import requests
 from PIL import ImageDraw
+import torch 
+from torchvision import transforms
+import torch.nn as nn 
+import folium
+
+class SimpleCNN(nn.Module):
+    def _init_(self, num_classes=2, dropout_prob=0.5):
+        super(SimpleCNN, self)._init_()
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
+        self.relu1 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.dropout1 = nn.Dropout2d(p=dropout_prob)  # Dropout layer
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.dropout2 = nn.Dropout2d(p=dropout_prob)  # Dropout layer
+        self.fc1 = nn.Linear(32 * 16 * 16, num_classes)
+
+    def forward(self, x):
+        # Explicitly handle the number of input channels
+        if x.dim() == 3:
+            x = x.unsqueeze(1)  # Add a channel dimension
+        x = self.pool1(self.relu1(self.conv1(x)))
+        x = self.dropout1(x)  # Apply dropout
+        x = self.pool2(self.relu2(self.conv2(x)))
+        x = self.dropout2(x)  # Apply dropout
+        x = x.view(-1, 32 * 16 * 16)
+        x = self.fc1(x)
+        return x
 
 
-def dispose_file(file):
-    # Your disposal logic goes here
-    # In this example, we simply delete the file
-    file_path = os.path.join("uploads", file.name)
-    os.remove(file_path)
-    st.success(f"File '{file.name}' has been disposed of.")
+
+#loading the model 
+loaded_model = SimpleCNN()
+loaded_model = torch.load("./good_model.pth")
+transform = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.ToTensor(),
+])
+
+
+
 
 
 #tained model
 def model(image) : 
-    return 0,[20,20]
+    input_tensor = transform(image).unsqueeze(0)
+    with torch.no_grad():
+        output = loaded_model(input_tensor)
+    
+    # Convert output to probabilities using softmax
+    probabilities = torch.nn.functional.softmax(output[0], dim=0)
+
+    # Get the predicted class index
+    predicted_class = torch.argmax(probabilities).item()
+    return predicted_class,[20,20] #à modifier
 
 
 
-def create_pdf(img_reader, result, coordinates, selected_date, longitude, latitude, session_state):
+def create_pdf(img_reader, result, selected_date, longitude, latitude, session_state):
     # Create a byte stream buffer
     pdf_buffer = io.BytesIO()
 
     # Create a canvas to draw on the PDF
     c = canvas.Canvas(pdf_buffer)
     
+    if result == 1 : 
+        plume = "yes"
+    else : 
+        plume = "no"
+
     # Draw something on the PDF
-    c.drawString(100, 800, f"There is a plume : {result}")
+    c.drawString(100, 800, "There is a plume : " + plume)
     c.drawString(100, 700, f"Selected Date: {selected_date}")
     c.drawString(100, 600, f"Selected longitude: {longitude}")
     c.drawString(100, 500, f"Selected latitude: {latitude}")
@@ -74,8 +122,6 @@ def main():
 
     # File upload widget
     uploaded_file = st.file_uploader("Upload a file", type=["tif", "tiff", "pdf", "png", "jpg", "jpeg"])
-    # Apply the model on the image 
-    result, coordinates = model(uploaded_file)
     
     if uploaded_file is not None:
         # Display the uploaded file
@@ -90,6 +136,10 @@ def main():
         # Creates the display with a square on the plume for the PDF
         image =  Image.fromarray(normalized_data)
         
+        # Apply the model on the image 
+        result, coordinates = model(image)
+        st.write(f"This is the predicted result : {result}")
+
         draw = ImageDraw.Draw(image)
         draw.rectangle((coordinates[0]-5,coordinates[1]-5,coordinates[0]+5,coordinates[1]+5), fill="white")
         
@@ -108,7 +158,7 @@ def main():
     if st.button("Generate PDF"):
         
 
-        pdf_file = create_pdf(img_reader, result, coordinates, selected_date, latitude, longitude, session_state)
+        pdf_file = create_pdf(img_reader, result, selected_date, latitude, longitude, session_state)
 
         # Download button
         st.download_button(
@@ -126,7 +176,7 @@ def main():
     """This part gives the opportunity to see points from analyzed pictures : if red then plume else no plume."""
 )
     # Slider to control the zoom level
-    zoom_level = st.slider("Zoom Level", min_value=1, max_value=20, value=1)
+    zoom_level = st.slider("Zoom Level", min_value=1, max_value=15, value=1)
 
     # Create or get the session state
     
