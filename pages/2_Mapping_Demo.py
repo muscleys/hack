@@ -14,124 +14,112 @@
 
 from urllib.error import URLError
 
-import streamlit as st
+import pandas as pd
 import pydeck as pdk
 
-# List to store points
-points = []
+import streamlit as st
+from streamlit.hello.utils import show_code
+
 
 def mapping_demo():
-    # Input fields for latitude and longitude
-    latitude = st.number_input("Enter Latitude:")
-    longitude = st.number_input("Enter Longitude:")
-
-    # Slider to control the zoom level
-    zoom_level = st.slider("Zoom Level", min_value=1, max_value=20, value=1)
-
-    # Create or get the session state
-    session_state = st.session_state
-    if 'points' not in session_state:
-        session_state.points = []
+    file_path = '/workspaces/hack/metadata.csv'
+    df = pd.read_csv(file_path)
     
-    if 'current_point_index' not in session_state:
-        session_state.current_point_index = 0
-
-    if zoom_level < 10:
-        scale = zoom_level ** 2
-    else:
-        scale = zoom_level ** 3
-
+    # Filter DataFrame based on the condition where 'plume' is True
+    #plume_df = [i for i in df if i[2] == "yes"]
+    plume_df = df.loc[df["plume"]=="yes"]
     try:
-        # Button to add the point
-        show_button = st.sidebar.button("Show Point")
 
-        # Button to delete all points
-        reset_button = st.sidebar.button("Delete Points")
+         # Slider to control the zoom level
+        zoom_level = st.slider("Zoom Level", min_value=1, max_value=20, value=1)
+
+        if zoom_level < 10:
+            scale = zoom_level ** 2
+        else:
+            scale = zoom_level ** 3
+
+        Col1, Col2 = st.columns([2,2])
 
         # Button to navigate to the previous point
-        previous_button = st.sidebar.button("Previous Point")
+        with Col1 : 
+            previous_button = st.button("Previous Point")
         # Button to navigate to the next point
-        next_button = st.sidebar.button("Next Point")
+        with Col2 : 
+            next_button = st.button("Next Point")
 
-        if show_button:
-            # Add the current point to the list
-            session_state.points.append({"lon": longitude, "lat": latitude})
 
-        if reset_button:
-            # Delete all points
-            session_state.points = []
-            session_state.current_point_index = 0
+
+        ALL_LAYERS = {
+            "Point": pdk.Layer(
+                 "ScatterplotLayer",
+                data=plume_df,
+                get_position=['lon', 'lat'],
+                get_color=[255, 0, 0],  # Red color
+                get_radius=400000/scale,  # Adjust the radius based on the desired circle size
+                pickable=True,
+            ),
+            
+        }
+        
+        session_state = st.session_state
 
         if previous_button:
             # Navigate to the previous point
             former_point = session_state.current_point_index
             session_state.current_point_index = max(0, session_state.current_point_index - 1)
             if former_point == session_state.current_point_index : 
-                session_state.current_point_index = len(session_state.points) - 1
+                session_state.current_point_index = len(plume_df) - 1
         
         if next_button:
             # Navigate to the next point
             former_point = session_state.current_point_index
-            session_state.current_point_index = min(len(session_state.points) - 1, session_state.current_point_index + 1)
+            session_state.current_point_index = min(len(plume_df) - 1, session_state.current_point_index + 1)
             if former_point == session_state.current_point_index : 
                 session_state.current_point_index = 0      
+        
+        if 'current_point_index' not in session_state:
+            session_state.current_point_index = 0
 
-        ALL_LAYERS = {
-            "Point": pdk.Layer(
-                "HexagonLayer",
-                data=session_state.points,
-                get_position=["lon", "lat"],
-                color=[255, 255, 255, 0],  # Red color with 50% transparency
-                radius=400000 / scale,  # Adjust the radius based on the selected zoom level
-                elevation_scale=4,
-                elevation_range=[0, 1000],
-                extruded=True,
-            ),
-        }
-
-        if len(session_state.points)>=1 : 
-            # Include the layer in the Deck object
+        st.sidebar.markdown("### Map Layers")
+        selected_layers = [
+            layer
+            for layer_name, layer in ALL_LAYERS.items()
+            if st.sidebar.checkbox(layer_name, True)
+        ]
+        if selected_layers:
             st.pydeck_chart(
                 pdk.Deck(
                     map_style=None,
                     initial_view_state={
-                        "latitude": session_state.points[session_state.current_point_index]["lat"],
-                        "longitude": session_state.points[session_state.current_point_index]["lon"],
+                        "latitude": plume_df["lat"][session_state.current_point_index],
+                        "longitude": plume_df["lon"][session_state.current_point_index],
                         "zoom": zoom_level,
-                        "pitch": 50,
+                        "pitch": 0,
                     },
-                    layers=list(ALL_LAYERS.values()),  # Add this line to include the layer
+                    layers=selected_layers,
                 )
             )
-
-        else : 
-            st.pydeck_chart(
-                pdk.Deck(
-                    map_style=None,
-                    initial_view_state={
-                        "latitude": 0,
-                        "longitude": 0,
-                        "zoom": zoom_level,
-                        "pitch": 50,
-                    },
-                    layers=list(ALL_LAYERS.values()),  # Add this line to include the layer
-                )
-            )
-
+        
+        else:
+            st.error("Please choose at least one layer above.")
     except URLError as e:
         st.error(
             """
             **This demo requires internet access.**
             Connection error: %s
         """
-        % e.reason
-    )
+            % e.reason
+        )
+    
 
 st.set_page_config(page_title="Mapping Demo", page_icon="🌍")
-st.markdown("# Points on the map")
-st.sidebar.header("Point add and navigation")
+st.markdown("# Mapping Demo")
+st.sidebar.header("Mapping Demo")
 st.write(
-    """This page gives the opportunity to put points according to the coordinates and navigate between them."""
+    """This demo shows how to use
+[`st.pydeck_chart`](https://docs.streamlit.io/library/api-reference/charts/st.pydeck_chart)
+to display geospatial data."""
 )
 
 mapping_demo()
+
